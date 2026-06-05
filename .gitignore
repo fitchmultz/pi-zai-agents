@@ -1,0 +1,9 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+.pi/cache/
+dist/
+coverage/
+validation-artifacts/
+*.tgz
+.env
