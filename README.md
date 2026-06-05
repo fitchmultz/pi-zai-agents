@@ -15,6 +15,12 @@ This package is intentionally separate from `pi-zai-mcp`. It does **not** regist
 pi install npm:pi-zai-agents
 ```
 
+Install directly from GitHub:
+
+```bash
+pi install https://github.com/fitchmultz/pi-zai-agents
+```
+
 From a local clone:
 
 ```bash
@@ -47,11 +53,11 @@ The package intentionally exposes the minimum product-level surface: three tools
 
 | Tool | Purpose |
 | --- | --- |
-| `z_ai_agent_translate` | Calls `general_translation` for translation, streaming translation, glossary upload, or glossary-backed translation. |
+| `z_ai_agent_translate` | Calls `general_translation` for translation, streaming translation, glossary upload, or glossary-backed translation. `glossaryPath` is resolved relative to the current pi session cwd and supports a leading `@`. |
 | `z_ai_agent_slide` | Calls `slides_glm_agent` to create/refine slides/posters (`action=create`) or retrieve/download conversation exports (`action=conversation`). |
 | `z_ai_agent_video` | Calls `vidu_template_agent` to create video-template tasks (`action=create`) or retrieve/poll async results (`action=result`). |
 
-TUI output is compact by default and uses colored custom renderers. Long-running calls emit early progress updates so the tool card appears before the API call completes. Press Ctrl+O on a tool result to expand details. Large JSON responses are saved to temp files when needed; streaming slide responses are always saved as raw JSON.
+TUI output is compact by default and uses colored custom renderers. Long-running calls emit early progress updates so the tool card appears before the API call completes. Press Ctrl+O on a tool result to expand details. Large JSON responses and truncated summaries are saved to temp files when needed; streaming slide responses are always saved as raw JSON.
 
 When `file_url`, `image_url`, or `video_url` values appear in a response, this extension downloads those artifacts into an OS temp directory and reports the local paths.
 
@@ -211,7 +217,7 @@ Translate text:
 }
 ```
 
-Translate with an uploaded glossary in one call:
+Translate with an uploaded glossary in one call. Relative paths resolve from the current pi session cwd:
 
 ```json
 {

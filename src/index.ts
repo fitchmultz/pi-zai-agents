@@ -1,3 +1,4 @@
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
@@ -8,7 +9,7 @@ import {
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
@@ -20,18 +21,10 @@ const DEFAULT_TIMEOUT_MS = 300_000;
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const COMPACT_PREVIEW_BYTES = 2_500;
 const EXPANDED_PREVIEW_BYTES = 12_000;
+const SUMMARY_TEXT_BYTES = 1_200;
 const VIDEO_ARTIFACT_REFRESH_DELAY_MS = 2_000;
 const VIDEO_ARTIFACT_REFRESH_ATTEMPTS = 3;
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(["pdf", "doc", "xlsx", "ppt", "txt", "jpg", "png"]);
-
-function stringEnum<const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) {
-  return Type.Unsafe<T[number]>({
-    type: "string",
-    enum: [...values],
-    ...(options?.description ? { description: options.description } : {}),
-    ...(options?.default ? { default: options.default } : {}),
-  });
-}
 
 const SOURCE_LANGUAGE_CODES = [
   "auto",
@@ -126,23 +119,23 @@ const TRANSLATION_STRATEGIES = ["general", "paraphrase", "two_step", "three_step
 const VIDEO_TEMPLATES = ["french_kiss", "bodyshake", "sexy_me"] as const;
 
 const TranslationSchema = Type.Object({
-  action: Type.Optional(stringEnum(["translate", "upload_glossary"] as const, {
+  action: Type.Optional(StringEnum(["translate", "upload_glossary"] as const, {
     description: "Translate text or upload a glossary file for later Translation Agent use.",
     default: "translate",
   })),
   text: Type.Optional(Type.String({ description: "Text to translate. Required when action is translate." })),
-  targetLang: Type.Optional(stringEnum(TARGET_LANGUAGE_CODES, { description: "Target language code.", default: "zh-CN" })),
-  sourceLang: Type.Optional(stringEnum(SOURCE_LANGUAGE_CODES, { description: "Source language code. Use auto to auto-detect.", default: "auto" })),
-  strategy: Type.Optional(stringEnum(TRANSLATION_STRATEGIES, { description: "Translation strategy. cot is supported by guide docs and live validation.", default: "general" })),
+  targetLang: Type.Optional(StringEnum(TARGET_LANGUAGE_CODES, { description: "Target language code.", default: "zh-CN" })),
+  sourceLang: Type.Optional(StringEnum(SOURCE_LANGUAGE_CODES, { description: "Source language code. Use auto to auto-detect.", default: "auto" })),
+  strategy: Type.Optional(StringEnum(TRANSLATION_STRATEGIES, { description: "Translation strategy. cot is supported by guide docs and live validation.", default: "general" })),
   glossaryId: Type.Optional(Type.String({ description: "Uploaded glossary file ID." })),
-  glossaryPath: Type.Optional(Type.String({ description: "Local glossary file to upload before translating. Live validation confirms .xlsx with source/target columns works." })),
+  glossaryPath: Type.Optional(Type.String({ description: "Local glossary file to upload before translating, resolved relative to the current pi session cwd. Live validation confirms .xlsx with source/target columns works." })),
   suggestion: Type.Optional(Type.String({ description: "Translation suggestions or style requirements." })),
-  reasonLang: Type.Optional(stringEnum(["from", "to"] as const, { description: "COT reasoning language when strategy is cot.", default: "to" })),
+  reasonLang: Type.Optional(StringEnum(["from", "to"] as const, { description: "COT reasoning language when strategy is cot.", default: "to" })),
   stream: Type.Optional(Type.Boolean({ description: "Use the API streaming mode. Defaults to false for compact translation output.", default: false })),
 });
 
 const SlideSchema = Type.Object({
-  action: stringEnum(["create", "conversation"] as const, { description: "Create/refine a slide/poster, or retrieve conversation/export artifacts." }),
+  action: StringEnum(["create", "conversation"] as const, { description: "Create/refine a slide/poster, or retrieve conversation/export artifacts." }),
   prompt: Type.Optional(Type.String({ description: "Natural-language slide or poster request. Required for action=create." })),
   conversationId: Type.Optional(Type.String({ description: "slides_glm_agent conversation ID. Required for action=conversation; optional for create refinement." })),
   requestId: Type.Optional(Type.String({ description: "User-defined unique request ID for create calls." })),
@@ -156,9 +149,9 @@ const SlideSchema = Type.Object({
 });
 
 const VideoSchema = Type.Object({
-  action: stringEnum(["create", "result"] as const, { description: "Create a video template task, or retrieve/poll an async result." }),
+  action: StringEnum(["create", "result"] as const, { description: "Create a video template task, or retrieve/poll an async result." }),
   imageUrl: Type.Optional(Type.String({ description: "Public Z.AI-fetchable image URL. Required for action=create. Avoid trailing slashes unless part of the real URL." })),
-  template: Type.Optional(stringEnum(VIDEO_TEMPLATES, { description: "Video effect template for action=create." })),
+  template: Type.Optional(StringEnum(VIDEO_TEMPLATES, { description: "Video effect template for action=create." })),
   prompt: Type.Optional(Type.String({ description: "Optional prompt override for action=create. Defaults to the documented prompt for the selected template." })),
   requestId: Type.Optional(Type.String({ description: "User-defined unique request ID for action=create." })),
   asyncId: Type.Optional(Type.String({ description: "Task ID returned by action=create. Required for action=result." })),
@@ -256,6 +249,11 @@ function getConfig(): ApiConfig {
 
 function normalizeToolPath(input: string): string {
   return input.startsWith("@") ? input.slice(1) : input;
+}
+
+function resolveToolPath(input: string, cwd: string): string {
+  const normalized = normalizeToolPath(input);
+  return isAbsolute(normalized) ? normalized : resolve(cwd, normalized);
 }
 
 function combineWithTimeout(signal: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
@@ -411,11 +409,14 @@ function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
       reject(signal.reason instanceof Error ? signal.reason : new Error("Cancelled"));
       return;
     }
-    const timeout = setTimeout(resolveSleep, ms);
     const onAbort = () => {
       clearTimeout(timeout);
       reject(signal?.reason instanceof Error ? signal.reason : new Error("Cancelled"));
     };
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolveSleep();
+    }, ms);
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
@@ -524,18 +525,19 @@ async function downloadArtifacts(value: unknown, signal: AbortSignal | undefined
   for (const [index, item] of urls.entries()) {
     try {
       const { signal: requestSignal, cleanup } = combineWithTimeout(signal, getConfig().timeoutMs);
-      let response: Response;
+      let arrayBuffer: ArrayBuffer;
+      let contentType: string | undefined;
       try {
-        response = await fetch(item.url, { signal: requestSignal });
+        const response = await fetch(item.url, { signal: requestSignal });
+        if (!response.ok) {
+          errors.push({ sourceKey: item.key, url: item.url, status: response.status, message: `HTTP ${response.status}` });
+          continue;
+        }
+        arrayBuffer = await response.arrayBuffer();
+        contentType = response.headers.get("content-type") || undefined;
       } finally {
         cleanup();
       }
-      if (!response.ok) {
-        errors.push({ sourceKey: item.key, url: item.url, status: response.status, message: `HTTP ${response.status}` });
-        continue;
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      const contentType = response.headers.get("content-type") || undefined;
       const urlName = safeFileName(basename(new URL(item.url).pathname));
       const hasExtension = extname(urlName).length > 0;
       const fileName = hasExtension ? `${index + 1}-${urlName}` : `${index + 1}-${safeFileName(item.key)}.${extensionFromContentType(contentType || null)}`;
@@ -589,6 +591,12 @@ function textPreview(value: unknown, maxBytes: number): { text: string; truncate
   const serialized = JSON.stringify(value, null, 2);
   const truncation = truncateHead(serialized, { maxLines: DEFAULT_MAX_LINES, maxBytes });
   return { text: truncation.content, truncated: truncation.truncated };
+}
+
+function summaryLine(label: string, value: string): { line: string; truncated: boolean } {
+  const truncation = truncateHead(value, { maxLines: 12, maxBytes: SUMMARY_TEXT_BYTES });
+  const suffix = truncation.truncated ? "\n[summary truncated; expand or open the raw response for full output]" : "";
+  return { line: `${label}: ${truncation.content}${suffix}`, truncated: truncation.truncated };
 }
 
 async function makeToolResult(title: string, status: string, lines: string[], payload: unknown, options?: { saveRawAlways?: boolean; signal?: AbortSignal | undefined; onProgress?: ((phase: string) => void) | undefined }) {
@@ -764,8 +772,8 @@ async function postAgentStreaming(body: unknown, signal: AbortSignal | undefined
   return { stream: true, event_count: events.length, summary: summarizeStreamEvents(events), events };
 }
 
-async function uploadFile(pathInput: string, purpose: "agent", signal: AbortSignal | undefined): Promise<UploadedFile> {
-  const path = resolve(normalizeToolPath(pathInput));
+async function uploadFile(pathInput: string, purpose: "agent", signal: AbortSignal | undefined, cwd: string): Promise<UploadedFile> {
+  const path = resolveToolPath(pathInput, cwd);
   const fileStat = await stat(path);
   if (!fileStat.isFile()) throw new Error(`Not a file: ${path}`);
   if (fileStat.size > MAX_UPLOAD_BYTES) throw new Error(`File exceeds Z.AI upload limit: ${formatSize(fileStat.size)} > ${formatSize(MAX_UPLOAD_BYTES)}`);
@@ -882,14 +890,14 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
       "For glossary-aware translation, prefer glossaryPath pointing to an .xlsx file with source/target columns; live validation showed free-form txt glossaries upload but may fail when used.",
     ],
     parameters: TranslationSchema,
-    async execute(_toolCallId, params, signal, onUpdate) {
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const title = "Z.AI Translation Agent";
       const action = params.action || "translate";
       emitProgress(onUpdate, title, action === "upload_glossary" ? "Preparing glossary upload..." : "Preparing translation request...");
       let uploaded: UploadedFile | undefined;
       if (params.glossaryPath) {
         emitProgress(onUpdate, title, "Uploading glossary file...", [normalizeToolPath(params.glossaryPath)]);
-        uploaded = await uploadFile(params.glossaryPath, "agent", signal);
+        uploaded = await uploadFile(params.glossaryPath, "agent", signal, ctx.cwd);
       }
       if (action === "upload_glossary") {
         if (!uploaded) throw new Error("glossaryPath is required for action=upload_glossary.");
@@ -919,8 +927,14 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
         ? await postAgentStreaming(translationRequest(requestInput), signal, (message) => emitProgress(onUpdate, title, message))
         : await postJson("/v1/agents", translationRequest(requestInput), signal);
       const fullPayload = appendUploaded(payload, uploaded);
-      const texts = collectText(payload).join("").trim();
-      return makeToolResult(title, statusOf(payload) || "success", texts ? [`text: ${texts}`] : [], fullPayload, { signal, onProgress: (phase) => emitProgress(onUpdate, title, phase) });
+      const textSummary = collectText(payload).join("").trim();
+      const textLine = textSummary ? summaryLine("text", textSummary) : undefined;
+      const resultOptions: { signal?: AbortSignal | undefined; saveRawAlways?: boolean; onProgress: (phase: string) => void } = {
+        signal,
+        onProgress: (phase) => emitProgress(onUpdate, title, phase),
+      };
+      if (textLine?.truncated) resultOptions.saveRawAlways = true;
+      return makeToolResult(title, statusOf(payload) || "success", textLine ? [textLine.line] : [], fullPayload, resultOptions);
     },
     renderCall: (args, theme) => renderToolCall("Z.AI Translation Agent", args as Record<string, unknown>, theme),
     renderResult: renderSummary,
@@ -952,7 +966,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
         const conversationId = typeof (payload as JsonObject).conversation_id === "string" ? String((payload as JsonObject).conversation_id) : streamSummary.conversationId;
         const lines = [];
         if (conversationId) lines.push(`conversation_id: ${conversationId}`);
-        if (streamSummary.textByPhase.answer) lines.push(`answer: ${streamSummary.textByPhase.answer.slice(0, 500)}`);
+        if (streamSummary.textByPhase.answer) lines.push(summaryLine("answer", streamSummary.textByPhase.answer).line);
         return makeToolResult(title, "success", lines, payload, { signal, saveRawAlways: true, onProgress: (phase) => emitProgress(onUpdate, title, phase, conversationId ? [`conversation_id: ${conversationId}`] : []) });
       }
       const conversationId = requireString(params.conversationId, "conversationId");
