@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-06-15
+
+- updated the local pi development baseline to `@earendil-works/*` `0.79.4` and refreshed the npm lockfile
+- ran typecheck and audit validation under pi `0.79.4`
+
 ## 0.1.0 - 2026-06-05
 
 - Initial pi extension package for non-MCP Z.AI Agent API products.
