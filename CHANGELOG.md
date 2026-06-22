@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-06-22
+
+- updated the local pi development baseline to `@earendil-works/*` `0.79.10` and refreshed the npm lockfile
+- ran typecheck validation and an isolated Pi package-load smoke under pi `0.79.10`
+
 ## 0.1.1 - 2026-06-15
 
 - updated the local pi development baseline to `@earendil-works/*` `0.79.4` and refreshed the npm lockfile
