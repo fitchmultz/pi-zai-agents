@@ -45,7 +45,7 @@ Z_AI_API_KEY="your_key" pi -e .
 | `Z_AI_ACCEPT_LANGUAGE` | No | `en-US,en` | `Accept-Language` header. |
 | `Z_AI_AGENT_TIMEOUT_MS` | No | `300000` | Per-request timeout in ms. Applies to API and artifact download requests. |
 
-Run `/zai-agents-status` in pi to check local configuration.
+Run `/zai-agents-status` in pi to check local configuration. In TUI/RPC mode it uses Pi notifications; in print mode it writes the status text to stdout; in JSON mode it emits a custom message event.
 
 ## Tools
 
@@ -55,9 +55,9 @@ The package intentionally exposes the minimum product-level surface: three tools
 | --- | --- |
 | `z_ai_agent_translate` | Calls `general_translation` for translation, streaming translation, glossary upload, or glossary-backed translation. `glossaryPath` is resolved relative to the current pi session cwd and supports a leading `@`. |
 | `z_ai_agent_slide` | Calls `slides_glm_agent` to create/refine slides/posters (`action=create`) or retrieve/download conversation exports (`action=conversation`). |
-| `z_ai_agent_video` | Calls `vidu_template_agent` to create video-template tasks (`action=create`) or retrieve/poll async results (`action=result`). |
+| `z_ai_agent_video` | Calls `vidu_template_agent` to create video-template tasks (`action=create`) or retrieve/poll async results (`action=result`). Polling is clamped to 1-120 attempts and 1000-60000 ms intervals. |
 
-TUI output is compact by default and uses colored custom renderers. Long-running calls emit early progress updates so the tool card appears before the API call completes. Press Ctrl+O on a tool result to expand details. Large JSON responses and truncated summaries are saved to temp files when needed; streaming slide responses are always saved as raw JSON.
+TUI output is compact by default and uses colored custom renderers. Long-running calls emit early progress updates so the tool card appears before the API call completes. Expand a tool result to show details. Large JSON responses and truncated summaries are saved to temp files when needed; streaming slide responses are always saved as raw JSON.
 
 When `file_url`, `image_url`, or `video_url` values appear in a response, this extension downloads those artifacts into an OS temp directory and reports the local paths.
 
@@ -282,18 +282,18 @@ Poll an existing video async result:
 
 ```bash
 npm install
-npm run typecheck
-npm run lint
-npm publish --dry-run
+npm run ci
 ```
+
+Use `npm run release:dry-run` after bumping to an unpublished version.
 
 Local pi package smoke check:
 
 ```bash
 tmpdir="$(mktemp -d)"
 cd "$tmpdir"
-pi install -l /path/to/pi-zai-agents
-pi list
+PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 pi install -l --approve /path/to/pi-zai-agents
+PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 pi list --approve
 ```
 
 ## Project map

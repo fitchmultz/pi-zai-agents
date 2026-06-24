@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 - 2026-06-24
+
+- keep Z.AI request timeout/cancellation active through JSON body reads, uploads, and SSE stream consumption
+- make `/zai-agents-status` report the package version from `package.json` and emit useful output in non-UI modes
+- clamp video polling settings, improve malformed SSE errors, reduce tool-result prompt noise, and use Pi keybinding hints in TUI rendering
+- update the local Pi development baseline to `@earendil-works/*` `0.80.2`
+- add no-network tests and `npm run ci`
+
 ## 0.1.3 - 2026-06-23
 
 - updated the local pi development baseline to `@earendil-works/*` `0.80.1` and refreshed the npm lockfile

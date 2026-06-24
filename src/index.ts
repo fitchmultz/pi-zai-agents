@@ -4,17 +4,18 @@ import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
+  keyHint,
   truncateHead,
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { writeSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
 const EXTENSION_NAME = "pi-zai-agents";
-const EXTENSION_VERSION = "0.1.0";
 const DEFAULT_BASE_URL = "https://api.z.ai/api";
 const DEFAULT_ACCEPT_LANGUAGE = "en-US,en";
 const DEFAULT_TIMEOUT_MS = 300_000;
@@ -24,6 +25,8 @@ const EXPANDED_PREVIEW_BYTES = 12_000;
 const SUMMARY_TEXT_BYTES = 1_200;
 const VIDEO_ARTIFACT_REFRESH_DELAY_MS = 2_000;
 const VIDEO_ARTIFACT_REFRESH_ATTEMPTS = 3;
+const MAX_VIDEO_POLL_INTERVAL_MS = 60_000;
+const MAX_VIDEO_POLLS = 120;
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(["pdf", "doc", "xlsx", "ppt", "txt", "jpg", "png"]);
 
 const SOURCE_LANGUAGE_CODES = [
@@ -156,8 +159,8 @@ const VideoSchema = Type.Object({
   requestId: Type.Optional(Type.String({ description: "User-defined unique request ID for action=create." })),
   asyncId: Type.Optional(Type.String({ description: "Task ID returned by action=create. Required for action=result." })),
   waitUntilComplete: Type.Optional(Type.Boolean({ description: "Poll async-result until success or failure and download video_url artifacts.", default: false })),
-  pollIntervalMs: Type.Optional(Type.Number({ description: "Polling interval in milliseconds.", default: 5000, minimum: 1000 })),
-  maxPolls: Type.Optional(Type.Number({ description: "Maximum poll attempts.", default: 60, minimum: 1 })),
+  pollIntervalMs: Type.Optional(Type.Number({ description: "Polling interval in milliseconds. Clamped to 1000-60000.", default: 5000, minimum: 1000, maximum: MAX_VIDEO_POLL_INTERVAL_MS })),
+  maxPolls: Type.Optional(Type.Number({ description: "Maximum poll attempts. Clamped to 1-120.", default: 60, minimum: 1, maximum: MAX_VIDEO_POLLS })),
 });
 
 type JsonObject = Record<string, unknown>;
@@ -208,7 +211,7 @@ type SummaryDetails = {
   response?: unknown;
 };
 
-class ZaiApiError extends Error {
+export class ZaiApiError extends Error {
   readonly status?: number;
   readonly code?: string | number;
   readonly body?: unknown;
@@ -271,7 +274,7 @@ function combineWithTimeout(signal: AbortSignal | undefined, timeoutMs: number):
   };
 }
 
-async function readResponseBody(response: Response): Promise<unknown> {
+export async function readResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return undefined;
   try {
@@ -306,7 +309,12 @@ function assertNoAgentError(body: unknown): void {
   if (object.status === "failed") throw new ZaiApiError("Z.AI Agent task failed.", { body });
 }
 
-async function apiFetch(path: string, init: RequestInit, signal: AbortSignal | undefined): Promise<Response> {
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit,
+  signal: AbortSignal | undefined,
+  consume: (response: Response, signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const config = getConfig();
   const { signal: requestSignal, cleanup } = combineWithTimeout(signal, config.timeoutMs);
   const headers = new Headers(init.headers);
@@ -319,21 +327,22 @@ async function apiFetch(path: string, init: RequestInit, signal: AbortSignal | u
       const error = extractError(body);
       throw new ZaiApiError(error?.message || `Z.AI API request failed with HTTP ${response.status}`, errorOptions(response.status, error?.code, body));
     }
-    return response;
+    return await consume(response, requestSignal);
   } finally {
     cleanup();
   }
 }
 
 async function postJson(path: string, body: unknown, signal: AbortSignal | undefined): Promise<unknown> {
-  const response = await apiFetch(path, {
+  return apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  }, signal);
-  const payload = await readResponseBody(response);
-  assertNoAgentError(payload);
-  return payload;
+  }, signal, async (response) => {
+    const payload = await readResponseBody(response);
+    assertNoAgentError(payload);
+    return payload;
+  });
 }
 
 function defaultVideoPrompt(template: (typeof VIDEO_TEMPLATES)[number]): string {
@@ -624,7 +633,6 @@ async function makeToolResult(title: string, status: string, lines: string[], pa
     contentLines.push(`Full raw response: ${rawResponsePath}`);
     contentLines.push(`Open raw response: ${artifactOpenUrl(rawResponsePath)}`);
   }
-  contentLines.push("TUI output is compact; press Ctrl+O on the tool result to expand details.");
 
   const details: SummaryDetails = {
     title,
@@ -654,12 +662,20 @@ function extractSseData(block: string): string | undefined {
   return data.length > 0 ? data : undefined;
 }
 
-function parseSseText(text: string): unknown[] {
+function parseSsePayload(data: string): unknown {
+  try {
+    return JSON.parse(data) as unknown;
+  } catch (error) {
+    throw new ZaiApiError(`Invalid Z.AI SSE data frame: ${error instanceof Error ? error.message : String(error)}`, { body: data });
+  }
+}
+
+export function parseSseText(text: string): unknown[] {
   const events: unknown[] = [];
   for (const block of text.split(/\r?\n\r?\n/)) {
     const data = extractSseData(block);
     if (!data || data === "[DONE]") continue;
-    const payload = JSON.parse(data) as unknown;
+    const payload = parseSsePayload(data);
     assertNoAgentError(payload);
     events.push(payload);
   }
@@ -691,7 +707,7 @@ async function parseSseResponse(response: Response, params: { signal?: AbortSign
         done = true;
         break;
       }
-      const payload = JSON.parse(data) as unknown;
+      const payload = parseSsePayload(data);
       assertNoAgentError(payload);
       events.push(payload);
       params.onData?.(payload, events.length);
@@ -699,7 +715,7 @@ async function parseSseResponse(response: Response, params: { signal?: AbortSign
   }
   const tail = extractSseData(buffer);
   if (tail && tail !== "[DONE]") {
-    const payload = JSON.parse(tail) as unknown;
+    const payload = parseSsePayload(tail);
     assertNoAgentError(payload);
     events.push(payload);
     params.onData?.(payload, events.length);
@@ -744,32 +760,33 @@ function summarizeStreamEvents(events: unknown[]): { id?: string; conversationId
 }
 
 async function postAgentStreaming(body: unknown, signal: AbortSignal | undefined, onUpdate: ((text: string) => void) | undefined): Promise<unknown> {
-  const response = await apiFetch("/v1/agents", {
+  return apiFetch("/v1/agents", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  }, signal);
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("text/event-stream")) {
-    const payload = await readResponseBody(response);
-    if (typeof payload === "string" && payload.trimStart().startsWith("data:")) {
-      const events = parseSseText(payload);
-      return { stream: true, event_count: events.length, summary: summarizeStreamEvents(events), events };
+  }, signal, async (response, requestSignal) => {
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("text/event-stream")) {
+      const payload = await readResponseBody(response);
+      if (typeof payload === "string" && payload.trimStart().startsWith("data:")) {
+        const events = parseSseText(payload);
+        return { stream: true, event_count: events.length, summary: summarizeStreamEvents(events), events };
+      }
+      assertNoAgentError(payload);
+      return payload;
     }
-    assertNoAgentError(payload);
-    return payload;
-  }
-  let lastUpdate = 0;
-  const events = await parseSseResponse(response, {
-    signal,
-    onData: (_payload, index) => {
-      const now = Date.now();
-      if (now - lastUpdate < 1000 && index % 25 !== 0) return;
-      lastUpdate = now;
-      onUpdate?.(`Received ${index} streaming event(s) from Z.AI Agent API...`);
-    },
+    let lastUpdate = 0;
+    const events = await parseSseResponse(response, {
+      signal: requestSignal,
+      onData: (_payload, index) => {
+        const now = Date.now();
+        if (now - lastUpdate < 1000 && index % 25 !== 0) return;
+        lastUpdate = now;
+        onUpdate?.(`Received ${index} streaming event(s) from Z.AI Agent API...`);
+      },
+    });
+    return { stream: true, event_count: events.length, summary: summarizeStreamEvents(events), events };
   });
-  return { stream: true, event_count: events.length, summary: summarizeStreamEvents(events), events };
 }
 
 async function uploadFile(pathInput: string, purpose: "agent", signal: AbortSignal | undefined, cwd: string): Promise<UploadedFile> {
@@ -783,9 +800,11 @@ async function uploadFile(pathInput: string, purpose: "agent", signal: AbortSign
   const form = new FormData();
   form.append("purpose", purpose);
   form.append("file", new Blob([new Uint8Array(data)]), basename(path));
-  const response = await apiFetch("/paas/v4/files", { method: "POST", body: form }, signal);
-  const payload = await readResponseBody(response);
-  assertNoAgentError(payload);
+  const payload = await apiFetch("/paas/v4/files", { method: "POST", body: form }, signal, async (response) => {
+    const payload = await readResponseBody(response);
+    assertNoAgentError(payload);
+    return payload;
+  });
   if (!payload || typeof payload !== "object" || typeof (payload as JsonObject).id !== "string") throw new Error("Z.AI upload response did not include a file id.");
   return payload as UploadedFile;
 }
@@ -803,6 +822,19 @@ function requireTemplate(value: unknown): (typeof VIDEO_TEMPLATES)[number] {
 function appendUploaded(payload: unknown, uploaded: UploadedFile | undefined): unknown {
   if (!uploaded || !payload || typeof payload !== "object") return payload;
   return { uploaded_glossary: uploaded, ...(payload as JsonObject) };
+}
+
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const numberValue = typeof value === "number" ? value : fallback;
+  const integer = Number.isFinite(numberValue) ? Math.trunc(numberValue) : fallback;
+  return Math.min(max, Math.max(min, integer));
+}
+
+export function normalizeVideoPolling(pollIntervalMs: unknown, maxPolls: unknown): { pollIntervalMs: number; maxPolls: number } {
+  return {
+    pollIntervalMs: boundedInteger(pollIntervalMs, 5000, 1000, MAX_VIDEO_POLL_INTERVAL_MS),
+    maxPolls: boundedInteger(maxPolls, 60, 1, MAX_VIDEO_POLLS),
+  };
 }
 
 async function makeVideoToolResult(params: {
@@ -830,6 +862,50 @@ async function makeVideoToolResult(params: {
     signal: params.signal,
     onProgress: params.onProgress,
   });
+}
+
+let packageVersionCache: string | undefined;
+
+export async function getPackageVersion(): Promise<string> {
+  if (packageVersionCache) return packageVersionCache;
+  try {
+    const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { version?: unknown };
+    packageVersionCache = typeof packageJson.version === "string" ? packageJson.version : "unknown";
+  } catch {
+    packageVersionCache = "unknown";
+  }
+  return packageVersionCache;
+}
+
+export type StatusInfo = {
+  version: string;
+  hasKey: boolean;
+  tools: string[];
+  baseUrl: string;
+  acceptLanguage: string;
+  timeoutMs: number;
+};
+
+export async function getStatusInfo(): Promise<StatusInfo> {
+  return {
+    version: await getPackageVersion(),
+    hasKey: Boolean(process.env.Z_AI_API_KEY || process.env.ZAI_API_KEY),
+    tools: ["z_ai_agent_translate", "z_ai_agent_slide", "z_ai_agent_video"],
+    baseUrl: (process.env.Z_AI_AGENT_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ""),
+    acceptLanguage: process.env.Z_AI_ACCEPT_LANGUAGE || DEFAULT_ACCEPT_LANGUAGE,
+    timeoutMs: positiveIntegerFromEnv("Z_AI_AGENT_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
+  };
+}
+
+export function formatStatus(info: StatusInfo): string {
+  return [
+    `${EXTENSION_NAME} ${info.version}`,
+    `API key: ${info.hasKey ? "configured" : "missing"}`,
+    `Tools: ${info.tools.join(", ")}`,
+    `Base URL: ${info.baseUrl}`,
+    `Accept-Language: ${info.acceptLanguage}`,
+    `Timeout: ${info.timeoutMs}ms`,
+  ].join("\n");
 }
 
 function renderToolCall(title: string, args: Record<string, unknown>, theme: ToolTheme): Text {
@@ -872,7 +948,7 @@ function renderSummary(result: { details?: unknown }, options: { expanded?: bool
     lines.push(`  open raw: ${artifactOpenUrl(details.rawResponsePath)}`);
   }
   if (!options.expanded) {
-    lines.push(t.fg("dim", "  Ctrl+O: show details"));
+    lines.push(t.fg("dim", `  ${keyHint("app.tools.expand", "show details")}`));
   } else {
     lines.push("", t.fg("dim", "Response preview:"), details.expandedPreview);
   }
@@ -883,7 +959,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "z_ai_agent_translate",
     label: "Z.AI Translation Agent",
-    description: "Translate text or upload an .xlsx glossary with Z.AI General-Purpose Translation Agent. Paid Z.AI Agent API token billing applies. TUI output is compact; expand with Ctrl+O.",
+    description: "Translate text or upload an .xlsx glossary with Z.AI General-Purpose Translation Agent. Paid Z.AI Agent API token billing applies. TUI output is compact; expand the tool result for details.",
     promptSnippet: "Translate text with Z.AI Translation Agent, optionally uploading/using glossary files.",
     promptGuidelines: [
       "Use z_ai_agent_translate when the user explicitly wants Z.AI Translation Agent output, glossary-aware translation, or a named translation strategy.",
@@ -943,7 +1019,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "z_ai_agent_slide",
     label: "Z.AI Slide/Poster Agent",
-    description: "Create/refine slides/posters or retrieve slide conversation/export artifacts. Paid Z.AI Agent API token billing applies. TUI output is compact; expand with Ctrl+O.",
+    description: "Create/refine slides/posters or retrieve slide conversation/export artifacts. Paid Z.AI Agent API token billing applies. TUI output is compact; expand the tool result for details.",
     promptSnippet: "Create/refine Z.AI slides/posters and retrieve/download slide exports through one tool.",
     promptGuidelines: [
       "Use z_ai_agent_slide for Z.AI Slide/Poster Agent work. action=create returns a conversationId; action=conversation retrieves/downloads exports.",
@@ -987,7 +1063,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "z_ai_agent_video",
     label: "Z.AI Video Template Agent",
-    description: "Create a Z.AI Video Effect Template task or retrieve/poll its async result. Paid Z.AI per-video billing applies. TUI output is compact; expand with Ctrl+O.",
+    description: "Create a Z.AI Video Effect Template task or retrieve/poll its async result. Paid Z.AI per-video billing applies. TUI output is compact; expand the tool result for details.",
     promptSnippet: "Create/poll Z.AI french_kiss, bodyshake, or sexy_me video template tasks through one tool.",
     promptGuidelines: [
       "Use z_ai_agent_video only when the user explicitly asks for Z.AI Video Effect Template output and provides or approves an image URL.",
@@ -1014,10 +1090,11 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
       }
       if ((params.waitUntilComplete || params.action === "result") && asyncId) {
         emitProgress(onUpdate, title, "Polling video task...", [`async_id: ${asyncId}`]);
+        const polling = normalizeVideoPolling(params.pollIntervalMs, params.maxPolls);
         payload = await pollAsyncResult({
           asyncId,
-          pollIntervalMs: Math.max(1000, Math.trunc(params.pollIntervalMs ?? 5000)),
-          maxPolls: Math.max(1, Math.trunc(params.maxPolls ?? 60)),
+          pollIntervalMs: polling.pollIntervalMs,
+          maxPolls: polling.maxPolls,
           signal,
           onUpdate: (status, attempt) => emitProgress(onUpdate, title, `Poll ${attempt}: ${status}`, [`async_id: ${asyncId}`]),
         });
@@ -1034,15 +1111,20 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
   pi.registerCommand("zai-agents-status", {
     description: "Show pi-zai-agents configuration status",
     handler: async (_args, ctx) => {
-      const hasKey = Boolean(process.env.Z_AI_API_KEY || process.env.ZAI_API_KEY);
-      ctx.ui.notify([
-        `${EXTENSION_NAME} ${EXTENSION_VERSION}`,
-        `API key: ${hasKey ? "configured" : "missing"}`,
-        `Tools: z_ai_agent_translate, z_ai_agent_slide, z_ai_agent_video`,
-        `Base URL: ${(process.env.Z_AI_AGENT_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "")}`,
-        `Accept-Language: ${process.env.Z_AI_ACCEPT_LANGUAGE || DEFAULT_ACCEPT_LANGUAGE}`,
-        `Timeout: ${positiveIntegerFromEnv("Z_AI_AGENT_TIMEOUT_MS", DEFAULT_TIMEOUT_MS)}ms`,
-      ].join("\n"), hasKey ? "info" : "warning");
+      const info = await getStatusInfo();
+      const message = formatStatus(info);
+      if (ctx.hasUI) {
+        ctx.ui.notify(message, info.hasKey ? "info" : "warning");
+      } else if (ctx.mode === "print") {
+        writeSync(1, `${message}\n`);
+      } else {
+        pi.sendMessage({
+          customType: "zai-agents-status",
+          content: message,
+          display: true,
+          details: info,
+        });
+      }
     },
   });
 }
