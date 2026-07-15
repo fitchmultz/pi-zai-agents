@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- update the local Pi development lock and validation baseline to `@earendil-works/*` `0.80.7`
+
 ## 0.1.4 - 2026-06-24
 
 - keep Z.AI request timeout/cancellation active through JSON body reads, uploads, and SSE stream consumption
