@@ -1,6 +1,6 @@
 {
   "name": "pi-zai-agents",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Unofficial pi package exposing Z.AI Agent API tools for Slide/Poster, Translation, and Video Effect Template agents.",
   "type": "module",
   "author": "Mitch Fultz (https://github.com/fitchmultz)",

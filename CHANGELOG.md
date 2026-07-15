@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.5 - 2026-07-14
+
 - update the local Pi development lock and validation baseline to `@earendil-works/*` `0.80.7`
 
 ## 0.1.4 - 2026-06-24
