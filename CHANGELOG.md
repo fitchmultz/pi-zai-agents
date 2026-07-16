@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.6 - 2026-07-16
+
+- update the local Pi development lock and validation baseline to `@earendil-works/*` `0.80.9`; the Z.AI agent tool does not use the removed SDK model/auth options
 
 ## 0.1.5 - 2026-07-14
 

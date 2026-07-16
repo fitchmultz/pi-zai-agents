@@ -1,6 +1,6 @@
 {
   "name": "pi-zai-agents",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Unofficial pi package exposing Z.AI Agent API tools for Slide/Poster, Translation, and Video Effect Template agents.",
   "type": "module",
   "author": "Mitch Fultz (https://github.com/fitchmultz)",
@@ -41,9 +41,9 @@
     "release:dry-run": "npm run ci && npm publish --dry-run"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "^0.80.7",
-    "@earendil-works/pi-coding-agent": "^0.80.7",
-    "@earendil-works/pi-tui": "^0.80.7",
+    "@earendil-works/pi-ai": "^0.80.9",
+    "@earendil-works/pi-coding-agent": "^0.80.9",
+    "@earendil-works/pi-tui": "^0.80.9",
     "@types/node": "^24.13.0",
     "typebox": "^1.2.0",
     "typescript": "^6.0.3"
