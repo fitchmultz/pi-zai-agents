@@ -280,6 +280,8 @@ Poll an existing video async result:
 
 ## Verify this repo
 
+The source qualification baseline is official Pi **0.86.1**, with optional wildcard host peers. Use `npm ci --ignore-scripts` then `npm run check:compat` with an empty HOME/agent profile. This runs types, existing HTTP timeout/SSE tests, dry-run packing, and a native Pi tool loop that verifies translation request shaping and result delivery against a loopback HTTP fixture. It never calls the paid Z.ai service; live translation, slides, video, auth, and all-platform qualification remain separate.
+
 ```bash
 npm install
 npm run ci
