@@ -33,6 +33,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "check:compat": "npm run typecheck && npm test && npm run pack:dry-run",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.mjs",
@@ -41,9 +42,9 @@
     "release:dry-run": "npm run ci && npm publish --dry-run"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "^0.80.9",
-    "@earendil-works/pi-coding-agent": "^0.80.9",
-    "@earendil-works/pi-tui": "^0.80.9",
+    "@earendil-works/pi-ai": "0.86.1",
+    "@earendil-works/pi-coding-agent": "0.86.1",
+    "@earendil-works/pi-tui": "0.86.1",
     "@types/node": "^24.13.0",
     "typebox": "^1.2.0",
     "typescript": "^6.0.3"
