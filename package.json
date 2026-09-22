@@ -42,9 +42,9 @@
     "release:dry-run": "npm run ci && npm publish --dry-run"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "0.86.1",
-    "@earendil-works/pi-coding-agent": "0.86.1",
-    "@earendil-works/pi-tui": "0.86.1",
+    "@earendil-works/pi-ai": "0.87.0",
+    "@earendil-works/pi-coding-agent": "0.87.0",
+    "@earendil-works/pi-tui": "0.87.0",
     "@types/node": "^24.13.0",
     "typebox": "^1.2.0",
     "typescript": "^6.0.3"
