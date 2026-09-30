@@ -85,6 +85,9 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
     assert.equal(result.toolCallId, "translate-1");
     assert.match(JSON.stringify(result.content), /Bonjour/);
     assert.ok(events.some((event) => event.type === "tool_execution_update"));
+    await session.reload();
+    assert.deepEqual(session.getActiveToolNames().sort(), ["z_ai_agent_slide", "z_ai_agent_translate", "z_ai_agent_video"]);
+    assert.equal(requests.length, 1, "reload must not repeat a completed paid-service request");
     assert.deepEqual(errors, []);
   } finally {
     await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
