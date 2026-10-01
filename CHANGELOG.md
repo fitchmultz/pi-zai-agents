@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 - Pending release
+## 0.2.0 - 2026-10-01
 
 - Modernize the development cohort and suggested support floor to Pi 1.0.0, retaining optional wildcard host peers and the paid Translation/Glossary, Slide/Poster and Video Agent workflows.
 - Import `StringEnum` from the supported root export; no older-runtime shim or native-image-service replacement is needed.
