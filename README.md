@@ -61,6 +61,8 @@ TUI output is compact by default and uses colored custom renderers. Long-running
 
 When `file_url`, `image_url`, or `video_url` values appear in a response, this extension downloads those artifacts into an OS temp directory and reports the local paths.
 
+Native programmatic callers also receive the existing bounded outcome as `{title, status, summary, artifacts, artifactWarnings, rawResponsePath?}`. Artifact receipts contain `sourceKey`, local `path` and `bytes`, not remote URLs. Raw service responses remain existing private details or explicitly linked files. Paid-call intent guidance, billing notices, request IDs, upload/path checks, timeout/cancellation, polling and no-replay behavior are unchanged; native model image generation does not replace these services.
+
 ## Paid-call warning
 
 These tools make real Z.AI Agent API calls. Z.AI pricing docs list:
@@ -280,7 +282,7 @@ Poll an existing video async result:
 
 ## Verify this repo
 
-The development baseline is official Pi **0.99.1**, with optional wildcard host peers and offline compatibility checks against both official Pi and the maintained fork. Use `npm ci --ignore-scripts` then `npm run check:compat` with an empty HOME/agent profile. This runs types, existing HTTP timeout/SSE tests, dry-run packing, and a native Pi tool loop that verifies translation request shaping, result delivery, and reload without replay against a loopback HTTP fixture. It never calls the paid Z.ai service; live translation, slides, video, auth, and all-platform qualification remain separate.
+The development baseline and suggested minimum are official Pi **1.0.0**, retaining optional wildcard host peers rather than hard peer/engines pins. Official and fork hosts are qualified separately; the future minimal fork candidate remains unrun. See [Pi 1.0 qualification](PI_1_0_QUALIFICATION.md). Use `npm ci --ignore-scripts` then `npm run check:compat` with an empty HOME/agent profile. This runs types, existing HTTP timeout/SSE tests, dry-run packing, and a native Pi tool loop that verifies translation request shaping, result delivery, and reload without replay against a loopback HTTP fixture. It never calls the paid Z.ai service; live translation, slides, video, auth, and all-platform qualification remain separate.
 
 ```bash
 npm install

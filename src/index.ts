@@ -1,4 +1,4 @@
-import { StringEnum } from "@earendil-works/pi-ai/compat";
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
@@ -14,6 +14,7 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 
 const EXTENSION_NAME = "pi-zai-agents";
 const DEFAULT_BASE_URL = "https://api.z.ai/api";
@@ -162,6 +163,17 @@ const VideoSchema = Type.Object({
   pollIntervalMs: Type.Optional(Type.Number({ description: "Polling interval in milliseconds. Clamped to 1000-60000.", default: 5000, minimum: 1000, maximum: MAX_VIDEO_POLL_INTERVAL_MS })),
   maxPolls: Type.Optional(Type.Number({ description: "Maximum poll attempts. Clamped to 1-120.", default: 60, minimum: 1, maximum: MAX_VIDEO_POLLS })),
 });
+
+// Only the existing model-visible outcome and artifact receipts are exposed.
+// Raw service responses remain private details or explicitly linked files.
+const OutcomeSchema = Type.Object({
+  title: Type.String(),
+  status: Type.String(),
+  summary: Type.Array(Type.String()),
+  artifacts: Type.Array(Type.Object({ sourceKey: Type.String(), path: Type.String(), bytes: Type.Number() })),
+  artifactWarnings: Type.Array(Type.String()),
+  rawResponsePath: Type.Optional(Type.String()),
+}, { additionalProperties: false });
 
 type JsonObject = Record<string, unknown>;
 type ArtifactDownload = {
@@ -649,6 +661,12 @@ async function makeToolResult(title: string, status: string, lines: string[], pa
 
   return {
     content: [{ type: "text" as const, text: contentLines.join("\n") }],
+    structuredContent: {
+      title, status, summary: lines,
+      artifacts: artifacts.map(({ sourceKey, path, bytes }) => ({ sourceKey, path, bytes })),
+      artifactWarnings: artifactErrors.map(error => error.message),
+      ...(rawResponsePath ? { rawResponsePath } : {}),
+    },
     details,
   };
 }
@@ -914,8 +932,14 @@ function renderToolCall(title: string, args: Record<string, unknown>, theme: Too
   return new Text(`${theme.fg("toolTitle", theme.bold(title))}${theme.fg("muted", detail)}`, 0, 0);
 }
 
-function renderSummary(result: { details?: unknown }, options: { expanded?: boolean; isPartial?: boolean }, theme: ToolTheme) {
+function renderSummary(result: { content?: Array<{ type: string; text?: string }>; details?: unknown }, options: { expanded?: boolean; isPartial?: boolean }, theme: ToolTheme, context?: { isError: boolean }) {
   const t = theme;
+  if (context?.isError) {
+    const text = result.content?.filter(part => part.type === "text").map(part => part.text).join("\n") || "Z.AI Agent call failed.";
+    const safeText = stripVTControlCharacters(text).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "");
+    const bounded = truncateHead(safeText, { maxBytes: options.expanded ? EXPANDED_PREVIEW_BYTES : COMPACT_PREVIEW_BYTES, maxLines: options.expanded ? 80 : 12 });
+    return new Text(`${t.fg("error", "Failed")}\n${t.fg("error", bounded.content)}${bounded.truncated ? `\n${t.fg("muted", "[error preview truncated]")}` : ""}`, 0, 0);
+  }
   const details = result.details as SummaryDetails | undefined;
   if (!details) return new Text(t.fg("muted", "Z.AI Agent result"), 0, 0);
   if (options.isPartial) {
@@ -966,6 +990,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
       "For glossary-aware translation, prefer glossaryPath pointing to an .xlsx file with source/target columns; live validation showed free-form txt glossaries upload but may fail when used.",
     ],
     parameters: TranslationSchema,
+    outputSchema: OutcomeSchema,
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const title = "Z.AI Translation Agent";
       const action = params.action || "translate";
@@ -1026,6 +1051,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
       "After z_ai_agent_slide action=create, call z_ai_agent_slide action=conversation when the user needs PDF/image artifacts.",
     ],
     parameters: SlideSchema,
+    outputSchema: OutcomeSchema,
     async execute(_toolCallId, params, signal, onUpdate) {
       const title = "Z.AI Slide/Poster Agent";
       emitProgress(onUpdate, title, params.action === "create" ? "Preparing slide/poster request..." : "Preparing slide conversation export...");
@@ -1070,6 +1096,7 @@ export default function zaiAgentsExtension(pi: ExtensionAPI) {
       "Use z_ai_agent_video action=result for async IDs returned by action=create when waitUntilComplete was false or timed out.",
     ],
     parameters: VideoSchema,
+    outputSchema: OutcomeSchema,
     async execute(_toolCallId, params, signal, onUpdate) {
       const title = "Z.AI Video Template Agent";
       emitProgress(onUpdate, title, params.action === "create" ? "Preparing video template request..." : "Preparing async result lookup...");
