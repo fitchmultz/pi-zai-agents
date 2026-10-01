@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - Pending release
+
+- Modernize the development cohort and suggested support floor to Pi 1.0.0, retaining optional wildcard host peers and the paid Translation/Glossary, Slide/Poster and Video Agent workflows.
+- Import `StringEnum` from the supported root export; no older-runtime shim or native-image-service replacement is needed.
+- Add native `outputSchema`/`structuredContent` for bounded existing outcomes and local artifact receipts, without exposing raw service responses or signed artifact URLs.
+- Qualify translation, glossary upload, poster creation/export, video task receipt/result/download and invalid-input failure in the actual native tool loop against isolated loopback fixtures, including request IDs and reload without replay.
+- Render native failures truthfully with bounded actual error content, rather than hiding errors behind a generic result label when details are absent.
+
 ## 0.1.6 - 2026-07-16
 
 - update the local Pi development lock and validation baseline to `@earendil-works/*` `0.80.9`; the Z.AI agent tool does not use the removed SDK model/auth options
