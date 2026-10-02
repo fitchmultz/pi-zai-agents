@@ -75,5 +75,5 @@
       "./extensions/zai-agents.ts"
     ]
   },
-  "packageManager": "npm@11.16.0"
+  "packageManager": "npm@11.21.0"
 }
