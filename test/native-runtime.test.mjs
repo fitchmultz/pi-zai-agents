@@ -121,8 +121,15 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
       ["invalid", "z_ai_agent_translate", { action: "translate" }],
       ["remote-error", "z_ai_agent_translate", { text: "fixture-error" }],
     ];
-    queuedCalls.push(...actions.map(([id, name, arguments_]) => ({ type: "toolCall", id, name, arguments: arguments_ })));
-    await session.prompt("Exercise only the owned glossary/poster/video service fixtures.");
+    const retrievalIds = new Set(["slides-export", "video-result"]);
+    queuedCalls.push(...actions.filter(([id]) => !retrievalIds.has(id)).map(([id, name, arguments_]) => ({ type: "toolCall", id, name, arguments: arguments_ })));
+    await session.prompt("Exercise only the owned glossary/poster/video creation fixtures.");
+    assert.deepEqual(requests.filter(request => request.url === "/v1/agents" && request.body.agent_id === "slides_glm_agent").map(request => request.body.request_id), ["poster-receipt"], "exactly one poster job is created");
+    assert.deepEqual(requests.filter(request => request.url === "/v1/agents" && request.body.agent_id === "vidu_template_agent").map(request => request.body.request_id), ["video-receipt"], "exactly one video job is created");
+    const creationsBeforeRetrieval = requests.filter(request => request.url === "/v1/agents").length;
+    queuedCalls.push(...actions.filter(([id]) => retrievalIds.has(id)).map(([id, name, arguments_]) => ({ type: "toolCall", id, name, arguments: arguments_ })));
+    await session.prompt("Retrieve only the existing owned poster/video fixture jobs.");
+    assert.equal(requests.filter(request => request.url === "/v1/agents").length, creationsBeforeRetrieval, "retrieval never creates or replays a paid job");
     const ended = events.filter(event => event.type === "tool_execution_end" && actions.some(([id]) => id === event.toolCallId));
     assert.equal(ended.length, actions.length);
     for (const event of ended) {
@@ -138,6 +145,8 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
       const outcome = event.result.structuredContent;
       assert.ok(outcome?.title && outcome.status && Array.isArray(outcome.summary));
       assert.equal("response" in outcome, false);
+      if (event.toolCallId === "slides-export") assert.deepEqual(outcome.artifacts.map(artifact => artifact.sourceKey), ["file_url"], "slide export must deliver its local receipt");
+      if (event.toolCallId === "video-result") assert.deepEqual(outcome.artifacts.map(artifact => artifact.sourceKey), ["video_url"], "video retrieval must deliver its local receipt");
       for (const artifact of outcome.artifacts) {
         artifactDirectories.add(dirname(artifact.path));
         assert.equal(await readFile(artifact.path, "utf8"), "owned-fixture-artifact");
@@ -147,9 +156,7 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
       if (outcome.rawResponsePath) artifactDirectories.add(dirname(outcome.rawResponsePath));
     }
     assert.match(requests.find(request => request.url === "/paas/v4/files").body, /filename="glossary.xlsx"/);
-    assert.equal(requests.find(request => request.body.agent_id === "slides_glm_agent" && request.url === "/v1/agents").body.request_id, "poster-receipt");
-    assert.equal(requests.find(request => request.body.agent_id === "vidu_template_agent" && request.url === "/v1/agents").body.request_id, "video-receipt");
-    assert.equal(requests.filter(request => request.url === "/v1/agents/async-result").length, 1, "retrieval never creates or replays a paid job");
+    assert.equal(requests.filter(request => request.url === "/v1/agents/async-result").length, 1, "video retrieval polls exactly once");
     const completedRequests = requests.length;
     await session.reload();
     assert.deepEqual(session.getActiveToolNames().sort(), ["z_ai_agent_slide", "z_ai_agent_translate", "z_ai_agent_video"]);
