@@ -280,9 +280,15 @@ Poll an existing video async result:
 - Generic raw `/v1/agents` escape hatches. This package keeps a strict scope and only exposes the three verified product tools.
 - Z.AI GLM chat model provider support. Pi already has Z.AI model provider support through `ZAI_API_KEY`.
 
+## Automatic npm releases (maintainers)
+
+Follow the [shared release procedure](https://github.com/fitchmultz/.github#automatic-npm-releases): merge a reviewed PR into `main` with an intentional `package.json` version bump and a matching versioned `CHANGELOG.md` section. Once configured and enabled, publication is unattended after the existing compatibility checks and candidate-tarball qualification pass. Complete any applicable package-specific release evidence before merging the bump. Automation never bumps versions, overwrites releases, or republishes an existing version; existing manual publisher instructions remain valid.
+
+Failed/unpublished candidates can retry daily at 12:17 UTC or via manual dispatch of `npm release` on `main`, without another bump. Set repository variable `NPM_RELEASE_ENABLED` to anything other than `true` to stop new release plans; cancel pending runs separately when needed. Workflow validation is not evidence of a completed real OIDC publication.
+
 ## Verify this repo
 
-The development baseline and suggested minimum are official Pi **1.0.0**, retaining optional wildcard host peers rather than hard peer/engines pins. Official and fork hosts are qualified separately; the future minimal fork candidate remains unrun. See [Pi 1.0 qualification](PI_1_0_QUALIFICATION.md). Use `npm ci --ignore-scripts` then `npm run check:compat` with an empty HOME/agent profile. This runs types, existing HTTP timeout/SSE tests, dry-run packing, and a native Pi tool loop that verifies translation request shaping, result delivery, and reload without replay against a loopback HTTP fixture. It never calls the paid Z.ai service; live translation, slides, video, auth, and all-platform qualification remain separate.
+Pi **1.0.0** remains the suggested support floor, retaining optional wildcard host peers rather than hard peer/engines pins. Required qualification targets are the latest stable official Pi and latest maintained fork `main`, resolving version/commit once per workflow run and retaining exact SDK/CLI evidence. Locked development dependencies are reproducible snapshots, not validation targets. See [Pi 1.0 qualification](PI_1_0_QUALIFICATION.md). Use the shared qualifier with `--host official --target latest` and separately with the packed latest fork revision; it selects each complete host graph before running `npm run check:compat` with an empty HOME/agent profile. Plain `npm ci --ignore-scripts` only installs the locked development snapshot. This runs types, existing HTTP timeout/SSE tests, dry-run packing, and a native Pi tool loop that verifies translation request shaping, result delivery, and reload without replay against a loopback HTTP fixture. It never calls the paid Z.ai service; live translation, slides, video, auth, and all-platform qualification remain separate.
 
 ```bash
 npm install
