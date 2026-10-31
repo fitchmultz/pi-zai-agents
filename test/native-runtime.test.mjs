@@ -17,7 +17,10 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
   const slidePayload = {
     status: "success",
     conversation_id: "slides-fixture",
-    pages: Array.from({ length: 500 }, (_, index) => `Réponse ${index}: ${"é".repeat(80)}`),
+    choices: [{ messages: Array.from({ length: 500 }, (_, index) => ({
+      phase: "answer",
+      content: [{ type: "text", text: `Réponse ${index}: ${"é".repeat(80)}` }],
+    })) }],
   };
   const server = createServer(async (req, res) => {
     const chunks = [];
