@@ -282,7 +282,7 @@ Poll an existing video async result:
 
 ## Automatic npm releases (maintainers)
 
-Follow the [shared release procedure](https://github.com/fitchmultz/.github#automatic-npm-releases): merge a reviewed PR into `main` with an intentional `package.json` version bump and a matching versioned `CHANGELOG.md` section. Once configured and enabled, publication is unattended after the existing compatibility checks and candidate-tarball qualification pass. Complete any applicable package-specific release evidence before merging the bump. Automation never bumps versions, overwrites releases, or republishes an existing version; existing manual publisher instructions remain valid.
+After a reviewed change merges into `main`, the [shared release procedure](https://github.com/fitchmultz/.github#automatic-npm-releases) prepares a new version and publishes matching npm and GitHub releases after compatibility checks and candidate-tarball qualification. Complete applicable package-specific release evidence for the candidate before publication. Existing releases are not overwritten.
 
 Failed/unpublished candidates can retry daily at 12:17 UTC or via manual dispatch of `npm release` on `main`, without another bump. Set repository variable `NPM_RELEASE_ENABLED` to anything other than `true` to stop new release plans; cancel pending runs separately when needed. Workflow validation is not evidence of a completed real OIDC publication.
 
@@ -295,7 +295,7 @@ npm install
 npm run ci
 ```
 
-Use `npm run release:dry-run` after bumping to an unpublished version.
+Run `npm run release:dry-run` on the prepared, unpublished release candidate.
 
 Local pi package smoke check:
 
