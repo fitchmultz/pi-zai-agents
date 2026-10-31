@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 - 2026-10-31
+
+- Reuse one serialized response for result previews and raw artifacts, reducing repeated work on large agent responses.
+
 ## 0.2.0 - 2026-10-01
 
 - Modernize the development cohort and suggested support floor to Pi 1.0.0, retaining optional wildcard host peers and the paid Translation/Glossary, Slide/Poster and Video Agent workflows.
