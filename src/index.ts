@@ -576,10 +576,10 @@ async function downloadArtifacts(value: unknown, signal: AbortSignal | undefined
   return { downloads, errors };
 }
 
-async function saveJsonArtifact(name: string, value: unknown): Promise<string> {
+async function saveJsonArtifact(name: string, serialized: string): Promise<string> {
   const dir = await ensureTempDir(`${EXTENSION_NAME}-raw`);
   const path = join(dir, `${safeFileName(name)}.json`);
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await writeFile(path, `${serialized}\n`, "utf8");
   return path;
 }
 
@@ -608,8 +608,7 @@ function emitProgress(onUpdate: ToolUpdate | undefined, title: string, phase: st
   });
 }
 
-function textPreview(value: unknown, maxBytes: number): { text: string; truncated: boolean } {
-  const serialized = JSON.stringify(value, null, 2);
+function textPreview(serialized: string, maxBytes: number): { text: string; truncated: boolean } {
   const truncation = truncateHead(serialized, { maxLines: DEFAULT_MAX_LINES, maxBytes });
   return { text: truncation.content, truncated: truncation.truncated };
 }
@@ -623,11 +622,12 @@ function summaryLine(label: string, value: string): { line: string; truncated: b
 async function makeToolResult(title: string, status: string, lines: string[], payload: unknown, options?: { saveRawAlways?: boolean; signal?: AbortSignal | undefined; onProgress?: ((phase: string) => void) | undefined }) {
   if (collectUrls(payload).length > 0) options?.onProgress?.("Downloading returned artifacts...");
   const { downloads: artifacts, errors: artifactErrors } = await downloadArtifacts(payload, options?.signal);
-  const compact = textPreview(payload, COMPACT_PREVIEW_BYTES);
-  const expanded = textPreview(payload, EXPANDED_PREVIEW_BYTES);
-  const full = textPreview(payload, DEFAULT_MAX_BYTES);
+  const serialized = JSON.stringify(payload, null, 2);
+  const compact = textPreview(serialized, COMPACT_PREVIEW_BYTES);
+  const expanded = textPreview(serialized, EXPANDED_PREVIEW_BYTES);
+  const full = textPreview(serialized, DEFAULT_MAX_BYTES);
   if (options?.saveRawAlways || full.truncated) options?.onProgress?.("Saving raw response for expanded details...");
-  const rawResponsePath = options?.saveRawAlways || full.truncated ? await saveJsonArtifact(title, payload) : undefined;
+  const rawResponsePath = options?.saveRawAlways || full.truncated ? await saveJsonArtifact(title, serialized) : undefined;
 
   const contentLines = [title, `Status: ${status}`, ...lines];
   if (artifacts.length > 0) {

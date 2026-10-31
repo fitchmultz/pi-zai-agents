@@ -14,6 +14,11 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
   await mkdir(agentDir);
   const requests = [];
   const artifactDirectories = new Set();
+  const slidePayload = {
+    status: "success",
+    conversation_id: "slides-fixture",
+    pages: Array.from({ length: 500 }, (_, index) => `Réponse ${index}: ${"é".repeat(80)}`),
+  };
   const server = createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -34,7 +39,7 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
     const result = req.url === "/paas/v4/files" ? { id: "uploaded-fixture" }
       : req.url === "/v1/agents/conversation" ? { status: "success", file_url: `${baseUrl}/deck.pdf` }
       : req.url === "/v1/agents/async-result" ? { status: "success", video_url: `${baseUrl}/video.mp4` }
-      : body.agent_id === "slides_glm_agent" ? { status: "success", conversation_id: "slides-fixture" }
+      : body.agent_id === "slides_glm_agent" ? slidePayload
       : body.agent_id === "vidu_template_agent" ? { status: "processing", async_id: "video-fixture" }
       : { status: "success", text: "Bonjour" };
     res.end(JSON.stringify(result));
@@ -106,10 +111,14 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
     assert.equal(result?.isError, false);
     assert.equal(result.toolCallId, "translate-1");
     assert.match(JSON.stringify(result.content), /Bonjour/);
-    assert.deepEqual(events.find(event => event.type === "tool_execution_end" && event.toolCallId === "translate-1")?.result.structuredContent, {
+    const translation = events.find(event => event.type === "tool_execution_end" && event.toolCallId === "translate-1")?.result;
+    assert.deepEqual(translation.structuredContent, {
       title: "Z.AI Translation Agent", status: "success", summary: ["text: Bonjour"],
       artifacts: [], artifactWarnings: [],
     }, "native callers receive the existing bounded outcome, not raw service data");
+    assert.equal(translation.details.truncated, false);
+    assert.deepEqual(translation.details.response, { status: "success", text: "Bonjour" });
+    assert.equal(translation.details.rawResponsePath, undefined);
     assert.ok(events.some((event) => event.type === "tool_execution_update"));
     await writeFile(join(root, "glossary.xlsx"), "owned-fixture-spreadsheet");
     const actions = [
@@ -147,13 +156,24 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
       assert.equal("response" in outcome, false);
       if (event.toolCallId === "slides-export") assert.deepEqual(outcome.artifacts.map(artifact => artifact.sourceKey), ["file_url"], "slide export must deliver its local receipt");
       if (event.toolCallId === "video-result") assert.deepEqual(outcome.artifacts.map(artifact => artifact.sourceKey), ["video_url"], "video retrieval must deliver its local receipt");
+      if (outcome.rawResponsePath) artifactDirectories.add(dirname(outcome.rawResponsePath));
+      if (event.toolCallId === "slides-create") {
+        const details = event.result.details;
+        assert.equal(details.truncated, true);
+        assert.equal(details.response, undefined);
+        assert.equal(details.rawResponsePath, outcome.rawResponsePath);
+        assert.match(details.compactPreview, /Réponse 0/);
+        assert.ok(Buffer.byteLength(details.compactPreview) <= 2_500);
+        assert.ok(Buffer.byteLength(details.expandedPreview) <= 12_000);
+        assert.ok(details.expandedPreview.length > details.compactPreview.length);
+        assert.equal(await readFile(details.rawResponsePath, "utf8"), `${JSON.stringify(slidePayload, null, 2)}\n`);
+      }
       for (const artifact of outcome.artifacts) {
         artifactDirectories.add(dirname(artifact.path));
         assert.equal(await readFile(artifact.path, "utf8"), "owned-fixture-artifact");
         assert.equal(artifact.bytes, Buffer.byteLength("owned-fixture-artifact"));
         assert.equal("url" in artifact, false, "structured receipts do not expose service URLs");
       }
-      if (outcome.rawResponsePath) artifactDirectories.add(dirname(outcome.rawResponsePath));
     }
     assert.match(requests.find(request => request.url === "/paas/v4/files").body, /filename="glossary.xlsx"/);
     assert.equal(requests.filter(request => request.url === "/v1/agents/async-result").length, 1, "video retrieval polls exactly once");
