@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-10-31
+
+- Link the supported Pi compatibility floor and qualification evidence without pinning a host version in the README.
+
 ## 0.2.1 - 2026-10-31
 
 - Reuse one serialized response for result previews and raw artifacts, reducing repeated work on large agent responses.
