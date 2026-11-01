@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.4 - 2026-11-01
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Use direct Flash for automatic release remediation (#25) ([7f3d6d8](https://github.com/fitchmultz/pi-zai-agents/commit/7f3d6d8e3302828278736256ff8abe41687d093c))
+
+### What's Changed
+* Use direct Flash for necessary release remediation by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/25
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.3...v0.2.4
+
 ## 0.2.3 - 2026-11-01
 
 <!-- npm-release:unreleased:start -->
