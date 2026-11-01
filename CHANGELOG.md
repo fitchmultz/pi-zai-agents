@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.3 - 2026-11-01
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Automate reviewed npm patch releases (#23) ([450326c](https://github.com/fitchmultz/pi-zai-agents/commit/450326c6480482d1f70aaadd76619c9abba70e67))
+
+### What's Changed
+* Automate reviewed npm patch releases by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/23
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.2...v0.2.3
+
 ## 0.2.2 - 2026-10-31
 
 - Link the supported Pi compatibility floor and qualification evidence without pinning a host version in the README.
