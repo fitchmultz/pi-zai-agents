@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.5 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Raise the Pi floor to 1.5.0 (#27) ([19e009a](https://github.com/fitchmultz/pi-zai-agents/commit/19e009adadc796a8e8eb852f8ffdac96fdf719c2))
+
+### What's Changed
+* Raise the Pi floor to 1.5.0 by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/27
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.4...v0.2.5
+
 ## 0.2.4 - 2026-11-01
 
 <!-- npm-release:unreleased:start -->
