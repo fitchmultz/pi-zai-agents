@@ -148,7 +148,7 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
       if (event.toolCallId === "invalid" || event.toolCallId === "remote-error") {
         assert.equal(event.isError, true);
         const rendered = session.extensionRunner.getToolDefinition("z_ai_agent_translate").renderResult(event.result,
-          { expanded: false, isPartial: false }, { fg: (_color, text) => text, bold: text => text }, { isError: event.isError });
+          { expanded: false, isPartial: false }, { fg: (_color, text) => text, bold: text => text }, { isError: event.isError, keyHint: (_keybinding, description) => description });
         const text = rendered.render(80).join("\n");
         assert.match(text, event.toolCallId === "invalid" ? /Failed[\s\S]*text is required/ : /Failed[\s\S]*Owned service failure/);
         assert.equal(/[\u0000\u001b\u0007]/.test(text), false, "untrusted service failures cannot inject terminal controls");

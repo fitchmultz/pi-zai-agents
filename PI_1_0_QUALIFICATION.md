@@ -2,7 +2,7 @@
 
 ## Current contract
 
-Pi 1.0.0 is the supported floor. Translation with glossary uploads, slide/poster conversations and exports, and asynchronous video-effect creation/polling/download remain Z.AI's external paid workflows. Native model generation is not equivalent and does not replace them. Existing explicit user-intent/cost guidance, service credentials, request IDs, timeouts, cancellation, artifact URL/path validation and no-replay behavior remain in force.
+Pi 1.5.0 is the supported floor; result rendering uses the keybinding hints that Pi 1.5.0 passes to tool renderers. Translation with glossary uploads, slide/poster conversations and exports, and asynchronous video-effect creation/polling/download remain Z.AI's external paid workflows. Native model generation is not equivalent and does not replace them. Existing explicit user-intent/cost guidance, service credentials, request IDs, timeouts, cancellation, artifact URL/path validation and no-replay behavior remain in force.
 
 The native output schema publishes only the existing bounded title/status/summary, local artifact receipts and warnings, and optional raw-response path. Raw service responses and signed URLs are not spread into structured output. Existing text and file artifacts remain available. Failed calls show the actual bounded error rather than a success or generic missing-details label; untrusted error ANSI/control characters are removed before rendering.
 
