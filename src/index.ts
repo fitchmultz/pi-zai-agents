@@ -1,10 +1,9 @@
 import { StringEnum } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, KeybindingHints } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
-  keyHint,
   truncateHead,
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
@@ -932,9 +931,9 @@ function renderToolCall(title: string, args: Record<string, unknown>, theme: Too
   return new Text(`${theme.fg("toolTitle", theme.bold(title))}${theme.fg("muted", detail)}`, 0, 0);
 }
 
-function renderSummary(result: { content?: Array<{ type: string; text?: string }>; details?: unknown }, options: { expanded?: boolean; isPartial?: boolean }, theme: ToolTheme, context?: { isError: boolean }) {
+function renderSummary(result: { content?: Array<{ type: string; text?: string }>; details?: unknown }, options: { expanded?: boolean; isPartial?: boolean }, theme: ToolTheme, context: { isError: boolean } & Pick<KeybindingHints, "keyHint">) {
   const t = theme;
-  if (context?.isError) {
+  if (context.isError) {
     const text = result.content?.filter(part => part.type === "text").map(part => part.text).join("\n") || "Z.AI Agent call failed.";
     const safeText = stripVTControlCharacters(text).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "");
     const bounded = truncateHead(safeText, { maxBytes: options.expanded ? EXPANDED_PREVIEW_BYTES : COMPACT_PREVIEW_BYTES, maxLines: options.expanded ? 80 : 12 });
@@ -972,7 +971,7 @@ function renderSummary(result: { content?: Array<{ type: string; text?: string }
     lines.push(`  open raw: ${artifactOpenUrl(details.rawResponsePath)}`);
   }
   if (!options.expanded) {
-    lines.push(t.fg("dim", `  ${keyHint("app.tools.expand", "show details")}`));
+    lines.push(t.fg("dim", `  ${context.keyHint("app.tools.expand", "show details")}`));
   } else {
     lines.push("", t.fg("dim", "Response preview:"), details.expandedPreview);
   }
