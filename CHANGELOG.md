@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.6 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Recheck unreported Cursor reviews in automatic releases (#29) ([2275ce3](https://github.com/fitchmultz/pi-zai-agents/commit/2275ce3bc04ccf4af887c41a20f95cb727d950e9))
+
+### What's Changed
+* Recheck unreported Cursor reviews in automatic releases by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/29
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.5...v0.2.6
+
 ## 0.2.5 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
