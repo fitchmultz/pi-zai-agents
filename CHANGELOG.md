@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.9 - 2026-11-03
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Skip no-op releases and restate malformed remediation dispositions (#35) ([df81197](https://github.com/fitchmultz/pi-zai-agents/commit/df81197e12cc20ccca9ba0cb16a2ce3a59bc489a))
+
+### What's Changed
+* Skip no-op releases and restate malformed remediation dispositions by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/35
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.8...v0.2.9
+
 ## 0.2.8 - 2026-11-03
 
 <!-- npm-release:unreleased:start -->
