@@ -5,7 +5,7 @@
 <!-- npm-release:unreleased:start -->
 <!-- npm-release:unreleased:end -->
 
-- Merge pull request #32 from fitchmultz/restore-npm-queue-max ([f7acac0](https://github.com/fitchmultz/pi-zai-agents/commit/f7acac0e0a210034559733467e867b26512e6613))
+- Release metadata only: PR #32 ([f7acac0](https://github.com/fitchmultz/pi-zai-agents/commit/f7acac0e0a210034559733467e867b26512e6613)) was already shipped in [v0.2.7](https://github.com/fitchmultz/pi-zai-agents/releases/tag/v0.2.7), so this release contains no new source changes.
 
 **Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.7...v0.2.8
 
