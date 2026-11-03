@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.7 - 2026-11-03
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Merge pull request #31 from fitchmultz/npm-version-queue-1 ([039c067](https://github.com/fitchmultz/pi-zai-agents/commit/039c067b02f150abe5677a3bffee7087ba4405d9))
+
+### What's Changed
+* Coalesce queued npm version runs by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/31
+* Restore queue: max and the final newline in npm-version.yml by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/32
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.6...v0.2.7
+
 ## 0.2.6 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
