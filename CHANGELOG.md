@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.10 - 2026-11-09
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- test: check untrusted errors before native rendering (#37) ([02583c4](https://github.com/fitchmultz/pi-zai-agents/commit/02583c42d8e46f7c8ffde5f6934938bed62f1720))
+
+### What's Changed
+* Test error sanitization before native rendering by @fitchmultz in https://github.com/fitchmultz/pi-zai-agents/pull/37
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-zai-agents/compare/v0.2.9...v0.2.10
+
 ## 0.2.9 - 2026-11-03
 
 <!-- npm-release:unreleased:start -->
