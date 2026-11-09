@@ -147,11 +147,25 @@ test("native tool loop shapes translation HTTP payload and preserves results", {
     for (const event of ended) {
       if (event.toolCallId === "invalid" || event.toolCallId === "remote-error") {
         assert.equal(event.isError, true);
-        const rendered = session.extensionRunner.getToolDefinition("z_ai_agent_translate").renderResult(event.result,
-          { expanded: false, isPartial: false }, { fg: (_color, text) => text, bold: text => text }, { isError: event.isError, keyHint: (_keybinding, description) => description });
-        const text = rendered.render(80).join("\n");
-        assert.match(text, event.toolCallId === "invalid" ? /Failed[\s\S]*text is required/ : /Failed[\s\S]*Owned service failure/);
-        assert.equal(/[\u0000\u001b\u0007]/.test(text), false, "untrusted service failures cannot inject terminal controls");
+        const expectedError = event.toolCallId === "invalid" ? /Failed[\s\S]*text is required/ : /Failed[\s\S]*Owned service failure/;
+        for (const name of ["z_ai_agent_translate", "z_ai_agent_slide", "z_ai_agent_video"]) {
+          for (const expanded of [false, true]) {
+            const themeInputs = [];
+            const rendered = session.extensionRunner.getToolDefinition(name).renderResult(event.result,
+              { expanded, isPartial: false }, {
+                fg: (_color, text) => { themeInputs.push(text); return text; },
+                bold: text => text,
+              }, { isError: event.isError, keyHint: (_keybinding, description) => description });
+            const displayText = themeInputs.join("\n");
+            assert.match(displayText, expectedError);
+            assert.equal(/[\u0000-\u0008\u000b-\u001f\u007f]/.test(displayText), false,
+              "untrusted error text must be control-free before native Text rendering");
+            const text = rendered.render(80).join("\n");
+            assert.match(text, expectedError);
+            assert.equal(text.includes("\u001b]52;"), false, "raw render must not contain the hostile OSC52");
+            assert.equal(text.includes("\u0000"), false, "raw render must not contain the hostile NUL");
+          }
+        }
         continue;
       }
       const outcome = event.result.structuredContent;
